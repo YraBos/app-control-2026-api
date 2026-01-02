@@ -9,8 +9,17 @@ const events = [];
 // POST — добавление события
 app.post('/api/events', (req, res) => {
   console.log('Получен JSON:', req.body);
-  events.push(req.body); // сохраняем событие в массив
-  res.json({ status: 'ok' });
+
+  if (Array.isArray(req.body)) {
+    // если пришёл массив объектов — добавляем все
+    events.push(...req.body);
+  } else {
+    // если пришёл один объект — добавляем его
+    events.push(req.body);
+  }
+
+  // возвращаем то, что приняли
+  res.json(req.body);
 });
 
 // GET — получение всех событий
