@@ -1,6 +1,8 @@
 const express = require('express');
+const cors = require('cors');   // 🔹 добавляем CORS
 const app = express();
 
+app.use(cors());                // 🔹 разрешаем запросы с других доменов
 app.use(express.json());
 
 // временное хранилище событий в памяти
@@ -13,22 +15,28 @@ app.post('/api/events', (req, res) => {
   if (Array.isArray(req.body)) {
     req.body.forEach(item => {
       if (typeof item === 'string') {
-        // элемент массива — строка, парсим в объект
-        events.push(JSON.parse(item));
+        try {
+          events.push(JSON.parse(item));
+        } catch (e) {
+          console.error('Ошибка парсинга строки:', e);
+        }
       } else {
         events.push(item);
       }
     });
   } else {
     if (typeof req.body === 'string') {
-      events.push(JSON.parse(req.body));
+      try {
+        events.push(JSON.parse(req.body));
+      } catch (e) {
+        console.error('Ошибка парсинга строки:', e);
+      }
     } else {
       events.push(req.body);
     }
   }
 
-  // возвращаем то, что приняли
-  res.json(req.body);
+  res.json(req.body); // возвращаем то, что приняли
 });
 
 // GET — получение всех событий
