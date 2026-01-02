@@ -11,11 +11,20 @@ app.post('/api/events', (req, res) => {
   console.log('Получен JSON:', req.body);
 
   if (Array.isArray(req.body)) {
-    // если пришёл массив объектов — добавляем все
-    events.push(...req.body);
+    req.body.forEach(item => {
+      if (typeof item === 'string') {
+        // элемент массива — строка, парсим в объект
+        events.push(JSON.parse(item));
+      } else {
+        events.push(item);
+      }
+    });
   } else {
-    // если пришёл один объект — добавляем его
-    events.push(req.body);
+    if (typeof req.body === 'string') {
+      events.push(JSON.parse(req.body));
+    } else {
+      events.push(req.body);
+    }
   }
 
   // возвращаем то, что приняли
