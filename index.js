@@ -50,8 +50,13 @@ app.get('/', (req, res) => {
   res.send('API работает. Используй /api/events');
 });
 
-// очистка массива каждый день в 00:00 по Минску
-schedule.scheduleJob('*/1 * * * *', { tz: 'Europe/Minsk' }, () => {
+// 🔹 очистка массива каждый день в 00:00 по Минску через RecurrenceRule
+const rule = new schedule.RecurrenceRule();
+rule.tz = 'Europe/Minsk';
+rule.hour = 0;
+rule.minute = 0;
+
+schedule.scheduleJob(rule, () => {
   events = [];
   console.log("Массив событий очищен в 00:00 по Минску");
 });
@@ -60,4 +65,3 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`API слушает порт ${PORT}`);
 });
-
