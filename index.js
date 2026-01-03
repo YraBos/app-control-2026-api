@@ -51,7 +51,7 @@ app.get('/', (req, res) => {
 });
 
 // очистка массива каждый день в 00:00 по Минску
-schedule.scheduleJob('0 0 * * *', { tz: 'Europe/Minsk' }, () => {
+schedule.scheduleJob('*/1 * * * *', { tz: 'Europe/Minsk' }, () => {
   events = [];
   console.log("Массив событий очищен в 00:00 по Минску");
 });
@@ -60,3 +60,4 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`API слушает порт ${PORT}`);
 });
+
