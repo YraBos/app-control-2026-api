@@ -1,12 +1,13 @@
 const express = require('express');
-const cors = require('cors');   // 🔹 добавляем CORS
+const cors = require('cors');
+const schedule = require('node-schedule'); // 🔹 планировщик
 const app = express();
 
-app.use(cors());                // 🔹 разрешаем запросы с других доменов
+app.use(cors());
 app.use(express.json());
 
 // временное хранилище событий в памяти
-const events = [];
+let events = [];
 
 // POST — добавление события
 app.post('/api/events', (req, res) => {
@@ -47,6 +48,12 @@ app.get('/api/events', (req, res) => {
 // корневой маршрут (чтобы проверить, что сервер жив)
 app.get('/', (req, res) => {
   res.send('API работает. Используй /api/events');
+});
+
+// очистка массива каждый день в 00:00 по Минску
+schedule.scheduleJob('0 0 * * *', { tz: 'Europe/Minsk' }, () => {
+  events = [];
+  console.log("Массив событий очищен в 00:00 по Минску");
 });
 
 const PORT = process.env.PORT || 3000;
