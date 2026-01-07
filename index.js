@@ -1,6 +1,6 @@
 const express = require('express');
 const cors = require('cors');
-const schedule = require('node-schedule'); // 🔹 планировщик
+const schedule = require('node-schedule');
 const app = express();
 
 app.use(cors());
@@ -8,6 +8,19 @@ app.use(express.json());
 
 // временное хранилище событий в памяти
 let events = [];
+
+// 🔑 пароль для входа
+const SERVER_PASSWORD = "123+321";
+
+// POST — проверка пароля
+app.post('/api/login', (req, res) => {
+  const { password } = req.body;
+  if (password === SERVER_PASSWORD) {
+    res.json({ status: "ok" });
+  } else {
+    res.json({ status: "fail" });
+  }
+});
 
 // POST — добавление события
 app.post('/api/events', (req, res) => {
@@ -37,7 +50,7 @@ app.post('/api/events', (req, res) => {
     }
   }
 
-  res.json(req.body); // возвращаем то, что приняли
+  res.json(req.body);
 });
 
 // GET — получение всех событий
@@ -52,12 +65,12 @@ app.post('/api/events/clear', (req, res) => {
   res.json({ status: "ok", message: "История очищена" });
 });
 
-// корневой маршрут (чтобы проверить, что сервер жив)
+// корневой маршрут
 app.get('/', (req, res) => {
   res.send('API работает. Используй /api/events');
 });
 
-// 🔹 очистка массива каждый день в 00:00 по Минску через RecurrenceRule
+// 🔹 очистка массива каждый день в 00:00 по Минску
 const rule = new schedule.RecurrenceRule();
 rule.tz = 'Europe/Minsk';
 rule.hour = 0;
