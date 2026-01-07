@@ -45,6 +45,13 @@ app.get('/api/events', (req, res) => {
   res.json(events);
 });
 
+// POST — очистка истории вручную
+app.post('/api/events/clear', (req, res) => {
+  events = [];
+  console.log("История очищена вручную через API");
+  res.json({ status: "ok", message: "История очищена" });
+});
+
 // корневой маршрут (чтобы проверить, что сервер жив)
 app.get('/', (req, res) => {
   res.send('API работает. Используй /api/events');
