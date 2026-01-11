@@ -1,40 +1,36 @@
 const express = require('express');
 const cors = require('cors');
 const schedule = require('node-schedule');
-const fs = require('fs');
-const path = require('path');
+const { Pool } = require('pg');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
 // -------------------------
-// ПУТИ К JSON-БАЗЕ
+// ПОДКЛЮЧЕНИЕ К POSTGRESQL
 // -------------------------
-const DB_DIR = path.join(__dirname, 'data');
-const DB_FILE = path.join(DB_DIR, 'events.json');
+const pool = new Pool({
+  connectionString: "postgresql://app_control:Lus3xcVsi5AL9K6oFy6cVZqVbIG3yjuX@dpg-d5ht8vkhg0os7387cugg-a.frankfurt-postgres.render.com/app_control",
+  ssl: { rejectUnauthorized: false }
+});
 
-// Создаём каталог data/, если его нет
-if (!fs.existsSync(DB_DIR)) {
-  fs.mkdirSync(DB_DIR, { recursive: true });
-  console.log("Создан каталог data/");
+// -------------------------
+// ФУНКЦИИ РАБОТЫ С БД
+// -------------------------
+
+// Загружаем JSON из таблицы
+async function loadDB() {
+  const result = await pool.query("SELECT data FROM events WHERE id = 1");
+  return result.rows[0].data;
 }
 
-// -------------------------
-// ФУНКЦИИ РАБОТЫ С JSON
-// -------------------------
-function saveDB(db) {
-  fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), 'utf8');
-}
-
-function loadDB() {
-  if (!fs.existsSync(DB_FILE)) {
-    console.log("Файл events.json отсутствует — создаём новый");
-    const empty = { last_update: new Date().toISOString(), events: [] };
-    saveDB(empty);   // ← ВАЖНО: создаём файл сразу
-    return empty;
-  }
-  return JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
+// Сохраняем JSON в таблицу
+async function saveDB(db) {
+  await pool.query(
+    "UPDATE events SET data = $1, updated_at = NOW() WHERE id = 1",
+    [db]
+  );
 }
 
 // -------------------------
@@ -53,52 +49,69 @@ app.post('/api/login', (req, res) => {
 });
 
 // Добавление событий
-app.post('/api/events', (req, res) => {
-  const incoming = req.body;
-  const db = loadDB();
+app.post('/api/events', async (req, res) => {
+  try {
+    const incoming = req.body;
+    const db = await loadDB();
 
-  if (Array.isArray(incoming)) {
-    incoming.forEach(item => {
-      if (typeof item === 'string') {
+    if (!Array.isArray(db.events)) db.events = [];
+
+    if (Array.isArray(incoming)) {
+      incoming.forEach(item => {
+        if (typeof item === 'string') {
+          try {
+            db.events.push(JSON.parse(item));
+          } catch (e) {
+            console.error("Ошибка парсинга строки:", e);
+          }
+        } else {
+          db.events.push(item);
+        }
+      });
+    } else {
+      if (typeof incoming === 'string') {
         try {
-          db.events.push(JSON.parse(item));
+          db.events.push(JSON.parse(incoming));
         } catch (e) {
           console.error("Ошибка парсинга строки:", e);
         }
       } else {
-        db.events.push(item);
+        db.events.push(incoming);
       }
-    });
-  } else {
-    if (typeof incoming === 'string') {
-      try {
-        db.events.push(JSON.parse(incoming));
-      } catch (e) {
-        console.error("Ошибка парсинга строки:", e);
-      }
-    } else {
-      db.events.push(incoming);
     }
+
+    db.last_update = new Date().toISOString();
+    await saveDB(db);
+
+    res.json({ status: "ok" });
+  } catch (err) {
+    console.error("Ошибка /api/events:", err);
+    res.status(500).json({ error: "db error" });
   }
-
-  db.last_update = new Date().toISOString();
-  saveDB(db);
-
-  res.json({ status: "ok" });
 });
 
 // Получение всех событий
-app.get('/api/events', (req, res) => {
-  const db = loadDB();
-  res.json(db.events);
+app.get('/api/events', async (req, res) => {
+  try {
+    const db = await loadDB();
+    res.json(db.events || []);
+  } catch (err) {
+    console.error("Ошибка /api/events GET:", err);
+    res.status(500).json({ error: "db error" });
+  }
 });
 
 // Очистка вручную
-app.post('/api/events/clear', (req, res) => {
-  const db = { last_update: new Date().toISOString(), events: [] };
-  saveDB(db);
-  console.log("История очищена вручную");
-  res.json({ status: "ok" });
+app.post('/api/events/clear', async (req, res) => {
+  try {
+    const db = { last_update: new Date().toISOString(), events: [] };
+    await saveDB(db);
+    console.log("История очищена вручную");
+    res.json({ status: "ok" });
+  } catch (err) {
+    console.error("Ошибка очистки:", err);
+    res.status(500).json({ error: "db error" });
+  }
 });
 
 // Корневой маршрут
@@ -114,10 +127,14 @@ rule.tz = 'Europe/Minsk';
 rule.hour = 0;
 rule.minute = 0;
 
-schedule.scheduleJob(rule, () => {
-  const db = { last_update: new Date().toISOString(), events: [] };
-  saveDB(db);
-  console.log("Авто-очистка JSON в 00:00 по Минску");
+schedule.scheduleJob(rule, async () => {
+  try {
+    const db = { last_update: new Date().toISOString(), events: [] };
+    await saveDB(db);
+    console.log("Авто-очистка в 00:00 по Минску");
+  } catch (err) {
+    console.error("Ошибка авто-очистки:", err);
+  }
 });
 
 // -------------------------
