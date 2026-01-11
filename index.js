@@ -1,22 +1,31 @@
 const express = require('express');
 const cors = require('cors');
-const fs = require('fs');
 const schedule = require('node-schedule');
+const fs = require('fs');
+const path = require('path');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// путь к JSON-файлу
-const DB_FILE = './data/events.json';
+// -------------------------
+// ПУТИ К JSON-БАЗЕ
+// -------------------------
+const DB_DIR = path.join(__dirname, 'data');
+const DB_FILE = path.join(DB_DIR, 'events.json');
 
-// пароль
-const SERVER_PASSWORD = "123+321";
+// Создаём каталог data/, если его нет
+if (!fs.existsSync(DB_DIR)) {
+  fs.mkdirSync(DB_DIR, { recursive: true });
+  console.log("Создан каталог data/");
+}
 
-// --- УТИЛИТЫ РАБОТЫ С JSON-БД ---
-
+// -------------------------
+// ФУНКЦИИ РАБОТЫ С JSON
+// -------------------------
 function loadDB() {
   if (!fs.existsSync(DB_FILE)) {
+    console.log("Файл events.json отсутствует — создаём новый");
     return { last_update: new Date().toISOString(), events: [] };
   }
   return JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
@@ -26,15 +35,22 @@ function saveDB(db) {
   fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), 'utf8');
 }
 
-// --- API ---
+// -------------------------
+// ПАРОЛЬ
+// -------------------------
+const SERVER_PASSWORD = "123+321";
 
-// логин
+// -------------------------
+// API
+// -------------------------
+
+// Авторизация
 app.post('/api/login', (req, res) => {
   const { password } = req.body;
   res.json({ status: password === SERVER_PASSWORD ? "ok" : "fail" });
 });
 
-// добавление событий
+// Добавление событий
 app.post('/api/events', (req, res) => {
   const incoming = req.body;
   const db = loadDB();
@@ -45,7 +61,7 @@ app.post('/api/events', (req, res) => {
         try {
           db.events.push(JSON.parse(item));
         } catch (e) {
-          console.error('Ошибка парсинга строки:', e);
+          console.error("Ошибка парсинга строки:", e);
         }
       } else {
         db.events.push(item);
@@ -56,7 +72,7 @@ app.post('/api/events', (req, res) => {
       try {
         db.events.push(JSON.parse(incoming));
       } catch (e) {
-        console.error('Ошибка парсинга строки:', e);
+        console.error("Ошибка парсинга строки:", e);
       }
     } else {
       db.events.push(incoming);
@@ -69,13 +85,13 @@ app.post('/api/events', (req, res) => {
   res.json({ status: "ok" });
 });
 
-// получение всех событий
+// Получение всех событий
 app.get('/api/events', (req, res) => {
   const db = loadDB();
   res.json(db.events);
 });
 
-// очистка вручную
+// Очистка вручную
 app.post('/api/events/clear', (req, res) => {
   const db = { last_update: new Date().toISOString(), events: [] };
   saveDB(db);
@@ -83,12 +99,14 @@ app.post('/api/events/clear', (req, res) => {
   res.json({ status: "ok" });
 });
 
-// корневой маршрут
+// Корневой маршрут
 app.get('/', (req, res) => {
   res.send('API работает. Используй /api/events');
 });
 
-// --- АВТО-ОЧИСТКА В 00:00 ПО МИНСКУ ---
+// -------------------------
+// АВТО-ОЧИСТКА В 00:00 ПО МИНСКУ
+// -------------------------
 const rule = new schedule.RecurrenceRule();
 rule.tz = 'Europe/Minsk';
 rule.hour = 0;
@@ -100,7 +118,9 @@ schedule.scheduleJob(rule, () => {
   console.log("Авто-очистка JSON в 00:00 по Минску");
 });
 
-// запуск сервера
+// -------------------------
+// СТАРТ СЕРВЕРА
+// -------------------------
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`API слушает порт ${PORT}`);
