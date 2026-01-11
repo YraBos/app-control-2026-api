@@ -1,68 +1,86 @@
 const express = require('express');
 const cors = require('cors');
+const fs = require('fs');
 const schedule = require('node-schedule');
-const app = express();
 
+const app = express();
 app.use(cors());
 app.use(express.json());
 
-// временное хранилище событий в памяти
-let events = [];
+// путь к JSON-файлу
+const DB_FILE = './data/events.json';
 
-// 🔑 пароль для входа
+// пароль
 const SERVER_PASSWORD = "123+321";
 
-// POST — проверка пароля
+// --- УТИЛИТЫ РАБОТЫ С JSON-БД ---
+
+function loadDB() {
+  if (!fs.existsSync(DB_FILE)) {
+    return { last_update: new Date().toISOString(), events: [] };
+  }
+  return JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
+}
+
+function saveDB(db) {
+  fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), 'utf8');
+}
+
+// --- API ---
+
+// логин
 app.post('/api/login', (req, res) => {
   const { password } = req.body;
-  if (password === SERVER_PASSWORD) {
-    res.json({ status: "ok" });
-  } else {
-    res.json({ status: "fail" });
-  }
+  res.json({ status: password === SERVER_PASSWORD ? "ok" : "fail" });
 });
 
-// POST — добавление события
+// добавление событий
 app.post('/api/events', (req, res) => {
-  console.log('Получен JSON:', req.body);
+  const incoming = req.body;
+  const db = loadDB();
 
-  if (Array.isArray(req.body)) {
-    req.body.forEach(item => {
+  if (Array.isArray(incoming)) {
+    incoming.forEach(item => {
       if (typeof item === 'string') {
         try {
-          events.push(JSON.parse(item));
+          db.events.push(JSON.parse(item));
         } catch (e) {
           console.error('Ошибка парсинга строки:', e);
         }
       } else {
-        events.push(item);
+        db.events.push(item);
       }
     });
   } else {
-    if (typeof req.body === 'string') {
+    if (typeof incoming === 'string') {
       try {
-        events.push(JSON.parse(req.body));
+        db.events.push(JSON.parse(incoming));
       } catch (e) {
         console.error('Ошибка парсинга строки:', e);
       }
     } else {
-      events.push(req.body);
+      db.events.push(incoming);
     }
   }
 
-  res.json(req.body);
+  db.last_update = new Date().toISOString();
+  saveDB(db);
+
+  res.json({ status: "ok" });
 });
 
-// GET — получение всех событий
+// получение всех событий
 app.get('/api/events', (req, res) => {
-  res.json(events);
+  const db = loadDB();
+  res.json(db.events);
 });
 
-// POST — очистка истории вручную
+// очистка вручную
 app.post('/api/events/clear', (req, res) => {
-  events = [];
-  console.log("История очищена вручную через API");
-  res.json({ status: "ok", message: "История очищена" });
+  const db = { last_update: new Date().toISOString(), events: [] };
+  saveDB(db);
+  console.log("История очищена вручную");
+  res.json({ status: "ok" });
 });
 
 // корневой маршрут
@@ -70,17 +88,19 @@ app.get('/', (req, res) => {
   res.send('API работает. Используй /api/events');
 });
 
-// 🔹 очистка массива каждый день в 00:00 по Минску
+// --- АВТО-ОЧИСТКА В 00:00 ПО МИНСКУ ---
 const rule = new schedule.RecurrenceRule();
 rule.tz = 'Europe/Minsk';
 rule.hour = 0;
 rule.minute = 0;
 
 schedule.scheduleJob(rule, () => {
-  events = [];
-  console.log("Массив событий очищен в 00:00 по Минску");
+  const db = { last_update: new Date().toISOString(), events: [] };
+  saveDB(db);
+  console.log("Авто-очистка JSON в 00:00 по Минску");
 });
 
+// запуск сервера
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`API слушает порт ${PORT}`);
