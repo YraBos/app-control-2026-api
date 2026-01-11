@@ -23,22 +23,24 @@ if (!fs.existsSync(DB_DIR)) {
 // -------------------------
 // ФУНКЦИИ РАБОТЫ С JSON
 // -------------------------
+function saveDB(db) {
+  fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), 'utf8');
+}
+
 function loadDB() {
   if (!fs.existsSync(DB_FILE)) {
     console.log("Файл events.json отсутствует — создаём новый");
-    return { last_update: new Date().toISOString(), events: [] };
+    const empty = { last_update: new Date().toISOString(), events: [] };
+    saveDB(empty);   // ← ВАЖНО: создаём файл сразу
+    return empty;
   }
   return JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
-}
-
-function saveDB(db) {
-  fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), 'utf8');
 }
 
 // -------------------------
 // ПАРОЛЬ
 // -------------------------
-const SERVER_PASSWORD = "0133";
+const SERVER_PASSWORD = "123+321";
 
 // -------------------------
 // API
@@ -125,4 +127,3 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`API слушает порт ${PORT}`);
 });
-
