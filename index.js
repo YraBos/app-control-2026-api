@@ -38,7 +38,7 @@ function saveDB(db) {
 // -------------------------
 // ПАРОЛЬ
 // -------------------------
-const SERVER_PASSWORD = "123+321";
+const SERVER_PASSWORD = "0133";
 
 // -------------------------
 // API
@@ -125,3 +125,4 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`API слушает порт ${PORT}`);
 });
+
