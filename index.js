@@ -11,7 +11,7 @@ const ftpConfig = {
   password: "103181"
 };
 
-const remoteDir = "FTP/YRA/mira/"; // без ведущего /
+const remoteDir = "FTP/YRA/mira"; // без ведущего /
 
 async function uploadJSON(data) {
   fs.writeFileSync("events.json", JSON.stringify(data, null, 2));
@@ -61,5 +61,3 @@ app.post("/api/events", async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-
-
