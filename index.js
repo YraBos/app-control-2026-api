@@ -11,33 +11,32 @@ const ftpConfig = {
   password: "103181"
 };
 
-const remotePath = "/FTP/YRA/mira/events.json";
+const remoteDir = "FTP/YRA/mira"; // без ведущего /
 
-// Загрузка JSON на FTP
 async function uploadJSON(data) {
   fs.writeFileSync("events.json", JSON.stringify(data, null, 2));
   const client = new ftp.Client();
   try {
     await client.access(ftpConfig);
-    await client.uploadFrom("events.json", remotePath);
+    await client.cd(remoteDir); // переходим в каталог
+    await client.uploadFrom("events.json", "events.json"); // кладём файл
   } finally {
     client.close();
   }
 }
 
-// Чтение JSON с FTP
 async function downloadJSON() {
   const client = new ftp.Client();
   try {
     await client.access(ftpConfig);
-    await client.downloadTo("events.json", remotePath);
+    await client.cd(remoteDir); // переходим в каталог
+    await client.downloadTo("events.json", "events.json");
   } finally {
     client.close();
   }
   return JSON.parse(fs.readFileSync("events.json", "utf8"));
 }
 
-// Получить все события
 app.get("/api/events", async (req, res) => {
   try {
     const data = await downloadJSON();
@@ -47,7 +46,6 @@ app.get("/api/events", async (req, res) => {
   }
 });
 
-// Добавить событие
 app.post("/api/events", async (req, res) => {
   try {
     const data = await downloadJSON();
@@ -63,4 +61,3 @@ app.post("/api/events", async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-
