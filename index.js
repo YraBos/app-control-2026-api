@@ -42,8 +42,16 @@ async function downloadJSON() {
     await client.cd(remoteDir);
     await client.downloadTo("events.json", "events.json");
     const parsed = JSON.parse(fs.readFileSync("events.json", "utf8"));
-    console.log("Downloaded events:", parsed.events ? parsed.events.length : 0);
-    return parsed.events ? parsed : { events: [] };
+
+    // нормализация: всегда массив
+    let events = [];
+    if (Array.isArray(parsed.events)) {
+      events = parsed.events;
+    } else if (typeof parsed.events === "object") {
+      events = Object.values(parsed.events);
+    }
+    console.log("Downloaded events:", events.length);
+    return { events };
   } catch (err) {
     console.error("Download error:", err.message);
     return { events: [] };
@@ -62,21 +70,19 @@ app.post("/api/login", (req, res) => {
   res.json({ status: password === SERVER_PASSWORD ? "ok" : "fail" });
 });
 
-// Получить все события
+// ✅ Получить все события — возвращаем массив
 app.get("/api/events", async (req, res) => {
   const data = await downloadJSON();
-  res.json(data);
+  res.json(data.events || []);
 });
 
-// Добавить событие (один или массив, нормализация)
+// Добавить событие
 app.post("/api/events", async (req, res) => {
   try {
     const data = await downloadJSON();
     let incoming = req.body;
 
-    // если пришёл объект с индексами ("0","1","2")
     if (!Array.isArray(incoming) && typeof incoming === "object") {
-      // превращаем его в массив значений
       incoming = Object.values(incoming).filter(v => typeof v === "object");
     }
 
@@ -88,7 +94,7 @@ app.post("/api/events", async (req, res) => {
       data.events.push({ id: Date.now(), ...incoming });
     }
 
-    await uploadJSON(data);
+    await uploadJSON({ events: data.events });
     res.json({ status: "ok", count: data.events.length });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -104,7 +110,7 @@ app.put("/api/events/:id", async (req, res) => {
     if (idx === -1) return res.status(404).json({ error: "Not found" });
 
     data.events[idx] = { ...data.events[idx], ...req.body };
-    await uploadJSON(data);
+    await uploadJSON({ events: data.events });
     res.json(data.events[idx]);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -117,7 +123,7 @@ app.delete("/api/events/:id", async (req, res) => {
     const data = await downloadJSON();
     const id = parseInt(req.params.id);
     data.events = data.events.filter(e => e.id !== id);
-    await uploadJSON(data);
+    await uploadJSON({ events: data.events });
     res.json({ status: "deleted" });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -127,8 +133,7 @@ app.delete("/api/events/:id", async (req, res) => {
 // Очистить историю
 app.post("/api/events/clear", async (req, res) => {
   try {
-    const data = { events: [] };
-    await uploadJSON(data);
+    await uploadJSON({ events: [] });
     res.json({ status: "cleared" });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -140,4 +145,3 @@ app.post("/api/events/clear", async (req, res) => {
 // -------------------------
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-
