@@ -8,24 +8,21 @@ app.use(cors());
 app.use(express.json());
 
 // -------------------------
-// ПОДКЛЮЧЕНИЕ К POSTGRESQL
+// ПОДКЛЮЧЕНИЕ К SUPABASE
 // -------------------------
 const pool = new Pool({
-  connectionString: "postgresql://app_control:Lus3xcVsi5AL9K6oFy6cVZqVbIG3yjuX@dpg-d5ht8vkhg0os7387cugg-a.frankfurt-postgres.render.com/app_control",
+  connectionString: "postgresql://postgres:C7ZUVrsnn38FdQtZ@db.opqogbvkcmrodfmbhler.supabase.co:5432/postgres",
   ssl: { rejectUnauthorized: false }
 });
 
 // -------------------------
 // ФУНКЦИИ РАБОТЫ С БД
 // -------------------------
-
-// Загружаем JSON из таблицы
 async function loadDB() {
   const result = await pool.query("SELECT data FROM events WHERE id = 1");
   return result.rows[0].data;
 }
 
-// Сохраняем JSON в таблицу
 async function saveDB(db) {
   await pool.query(
     "UPDATE events SET data = $1, updated_at = NOW() WHERE id = 1",
@@ -41,14 +38,11 @@ const SERVER_PASSWORD = "123+321";
 // -------------------------
 // API
 // -------------------------
-
-// Авторизация
 app.post('/api/login', (req, res) => {
   const { password } = req.body;
   res.json({ status: password === SERVER_PASSWORD ? "ok" : "fail" });
 });
 
-// Добавление событий
 app.post('/api/events', async (req, res) => {
   try {
     const incoming = req.body;
@@ -90,7 +84,6 @@ app.post('/api/events', async (req, res) => {
   }
 });
 
-// Получение всех событий
 app.get('/api/events', async (req, res) => {
   try {
     const db = await loadDB();
@@ -101,7 +94,6 @@ app.get('/api/events', async (req, res) => {
   }
 });
 
-// Очистка вручную
 app.post('/api/events/clear', async (req, res) => {
   try {
     const db = { last_update: new Date().toISOString(), events: [] };
@@ -114,7 +106,6 @@ app.post('/api/events/clear', async (req, res) => {
   }
 });
 
-// Корневой маршрут
 app.get('/', (req, res) => {
   res.send('API работает. Используй /api/events');
 });
