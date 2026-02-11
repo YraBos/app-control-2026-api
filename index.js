@@ -68,18 +68,24 @@ app.get("/api/events", async (req, res) => {
   res.json(data);
 });
 
-// Добавить событие (один или массив)
+// Добавить событие (один или массив, нормализация)
 app.post("/api/events", async (req, res) => {
   try {
     const data = await downloadJSON();
+    let incoming = req.body;
 
-    if (Array.isArray(req.body)) {
-      req.body.forEach(ev => {
+    // если пришёл объект с индексами ("0","1","2")
+    if (!Array.isArray(incoming) && typeof incoming === "object") {
+      // превращаем его в массив значений
+      incoming = Object.values(incoming).filter(v => typeof v === "object");
+    }
+
+    if (Array.isArray(incoming)) {
+      incoming.forEach(ev => {
         data.events.push({ id: Date.now(), ...ev });
       });
     } else {
-      const newEvent = { id: Date.now(), ...req.body };
-      data.events.push(newEvent);
+      data.events.push({ id: Date.now(), ...incoming });
     }
 
     await uploadJSON(data);
@@ -134,3 +140,4 @@ app.post("/api/events/clear", async (req, res) => {
 // -------------------------
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
