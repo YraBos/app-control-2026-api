@@ -1,137 +1,66 @@
-const express = require('express');
-const cors = require('cors');
-const schedule = require('node-schedule');
-const { Pool } = require('pg');
+import express from "express";
+import ftp from "basic-ftp";
+import fs from "fs";
 
 const app = express();
-app.use(cors());
 app.use(express.json());
 
-// -------------------------
-// ПОДКЛЮЧЕНИЕ К SUPABASE
-// -------------------------
-const pool = new Pool({
-  connectionString: "postgresql://postgres:C7ZUVrsnn38FdQtZ@db.opqogbvkcmrodfmbhler.supabase.co:5432/postgres",
-  ssl: { rejectUnauthorized: false }
-});
+const ftpConfig = {
+  host: "134.17.5.81",
+  user: "ftpuser",
+  password: "103181"
+};
 
-// -------------------------
-// ФУНКЦИИ РАБОТЫ С БД
-// -------------------------
-async function loadDB() {
-  const result = await pool.query("SELECT data FROM events WHERE id = 1");
-  return result.rows[0].data;
+const remotePath = "/FTP/YRA/mira/events.json";
+
+// Загрузка JSON на FTP
+async function uploadJSON(data) {
+  fs.writeFileSync("events.json", JSON.stringify(data, null, 2));
+  const client = new ftp.Client();
+  try {
+    await client.access(ftpConfig);
+    await client.uploadFrom("events.json", remotePath);
+  } finally {
+    client.close();
+  }
 }
 
-async function saveDB(db) {
-  await pool.query(
-    "UPDATE events SET data = $1, updated_at = NOW() WHERE id = 1",
-    [db]
-  );
+// Чтение JSON с FTP
+async function downloadJSON() {
+  const client = new ftp.Client();
+  try {
+    await client.access(ftpConfig);
+    await client.downloadTo("events.json", remotePath);
+  } finally {
+    client.close();
+  }
+  return JSON.parse(fs.readFileSync("events.json", "utf8"));
 }
 
-// -------------------------
-// ПАРОЛЬ
-// -------------------------
-const SERVER_PASSWORD = "123+321";
-
-// -------------------------
-// API
-// -------------------------
-app.post('/api/login', (req, res) => {
-  const { password } = req.body;
-  res.json({ status: password === SERVER_PASSWORD ? "ok" : "fail" });
-});
-
-app.post('/api/events', async (req, res) => {
+// Получить все события
+app.get("/api/events", async (req, res) => {
   try {
-    const incoming = req.body;
-    const db = await loadDB();
-
-    if (!Array.isArray(db.events)) db.events = [];
-
-    if (Array.isArray(incoming)) {
-      incoming.forEach(item => {
-        if (typeof item === 'string') {
-          try {
-            db.events.push(JSON.parse(item));
-          } catch (e) {
-            console.error("Ошибка парсинга строки:", e);
-          }
-        } else {
-          db.events.push(item);
-        }
-      });
-    } else {
-      if (typeof incoming === 'string') {
-        try {
-          db.events.push(JSON.parse(incoming));
-        } catch (e) {
-          console.error("Ошибка парсинга строки:", e);
-        }
-      } else {
-        db.events.push(incoming);
-      }
-    }
-
-    db.last_update = new Date().toISOString();
-    await saveDB(db);
-
-    res.json({ status: "ok" });
+    const data = await downloadJSON();
+    res.json(data);
   } catch (err) {
-    console.error("Ошибка /api/events:", err);
-    res.status(500).json({ error: "db error" });
+    res.status(500).json({ error: err.message });
   }
 });
 
-app.get('/api/events', async (req, res) => {
+// Добавить событие
+app.post("/api/events", async (req, res) => {
   try {
-    const db = await loadDB();
-    res.json(db.events || []);
+    const data = await downloadJSON();
+    const newEvent = { id: Date.now(), ...req.body };
+    if (!data.events) data.events = [];
+    data.events.push(newEvent);
+    await uploadJSON(data);
+    res.json(newEvent);
   } catch (err) {
-    console.error("Ошибка /api/events GET:", err);
-    res.status(500).json({ error: "db error" });
+    res.status(500).json({ error: err.message });
   }
 });
 
-app.post('/api/events/clear', async (req, res) => {
-  try {
-    const db = { last_update: new Date().toISOString(), events: [] };
-    await saveDB(db);
-    console.log("История очищена вручную");
-    res.json({ status: "ok" });
-  } catch (err) {
-    console.error("Ошибка очистки:", err);
-    res.status(500).json({ error: "db error" });
-  }
-});
-
-app.get('/', (req, res) => {
-  res.send('API работает. Используй /api/events');
-});
-
-// -------------------------
-// АВТО-ОЧИСТКА В 00:00 ПО МИНСКУ
-// -------------------------
-const rule = new schedule.RecurrenceRule();
-rule.tz = 'Europe/Minsk';
-rule.hour = 0;
-rule.minute = 0;
-
-schedule.scheduleJob(rule, async () => {
-  try {
-    const db = { last_update: new Date().toISOString(), events: [] };
-    await saveDB(db);
-    console.log("Авто-очистка в 00:00 по Минску");
-  } catch (err) {
-    console.error("Ошибка авто-очистки:", err);
-  }
-});
-
-// -------------------------
-// СТАРТ СЕРВЕРА
-// -------------------------
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`API слушает порт ${PORT}`);
-});
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
