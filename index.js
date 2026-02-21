@@ -141,7 +141,19 @@ app.post("/api/events/clear", async (req, res) => {
 });
 
 // -------------------------
+// DAILY RESET AT 00:00
+// -------------------------
+setInterval(async () => {
+  const now = new Date();
+  if (now.getHours() === 0 && now.getMinutes() === 0) {
+    console.log("Midnight reset triggered");
+    await uploadJSON({ events: [] });
+  }
+}, 60 * 1000); // проверка раз в минуту
+
+// -------------------------
 // СТАРТ СЕРВЕРА
 // -------------------------
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
