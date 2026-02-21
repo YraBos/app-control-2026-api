@@ -149,14 +149,13 @@ let lastResetDate = null;
 // Проверка раз в минуту
 setInterval(async () => {
   const now = new Date();
-  const today = now.toISOString().slice(0, 10);
+  fs.appendFileSync("tick.log", now.toISOString() + "\n");
 
-  // если уже сбрасывали сегодня — выходим
+  const today = now.toISOString().slice(0, 10);
   if (lastResetDate === today) return;
 
-  // диапазон 00:00–00:59
   if (now.getHours() >= 0 && now.getHours() < 1) {
-    console.log("Daily reset:", today);
+    fs.appendFileSync("tick.log", "RESET " + today + "\n");
     await uploadJSON({ events: [] });
     lastResetDate = today;
   }
@@ -174,4 +173,5 @@ app.listen(PORT, () => {
   // фиксируем дату старта, чтобы не сбросить "задним числом"
   lastResetDate = new Date().toISOString().slice(0, 10);
 });
+
 
