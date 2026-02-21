@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import ftp from "basic-ftp";
 import fs from "fs";
+import schedule from "node-schedule";   // ← добавили планировщик
 
 const app = express();
 app.use(express.json());
@@ -141,25 +142,14 @@ app.post("/api/events/clear", async (req, res) => {
 });
 
 // -------------------------
-// Автоматический сброс раз в сутки
+// Автоматический сброс раз в сутки (node-schedule)
 // -------------------------
 
-let lastResetDate = null;
-
-// Проверка раз в минуту
-setInterval(async () => {
-  const now = new Date();
-  fs.appendFileSync("tick.log", now.toISOString() + "\n");
-
-  const today = now.toISOString().slice(0, 10);
-  if (lastResetDate === today) return;
-
-  if (now.getHours() >= 0 && now.getHours() < 1) {
-    fs.appendFileSync("tick.log", "RESET " + today + "\n");
-    await uploadJSON({ events: [] });
-    lastResetDate = today;
-  }
-}, 60 * 1000);
+// Каждый день в 00:00
+schedule.scheduleJob("0 0 * * *", async () => {
+  console.log("Daily reset triggered");
+  await uploadJSON({ events: [] });
+});
 
 // -------------------------
 // Старт сервера
@@ -169,9 +159,5 @@ const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
-
-  // фиксируем дату старта, чтобы не сбросить "задним числом"
-  lastResetDate = new Date().toISOString().slice(0, 10);
 });
-
 
