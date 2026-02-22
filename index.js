@@ -2,20 +2,18 @@ import express from "express";
 import cors from "cors";
 import ftp from "basic-ftp";
 import fs from "fs";
-import schedule from "node-schedule";   // ← добавили планировщик
+import schedule from "node-schedule";
 
 const app = express();
 app.use(express.json());
 app.use(cors({ origin: "*" }));
 
-// Пароль для входа
 const SERVER_PASSWORD = "123+321";
 
-// Настройки FTP
 const ftpConfig = { host: "134.17.5.81", user: "ftpuser", password: "103181" };
 const remoteDir = "FTP/YRA/mira";
 
-// Загрузка JSON на FTP
+// загрузка JSON на FTP
 async function uploadJSON(data) {
   if (!data.events) data.events = [];
   fs.writeFileSync("events.json", JSON.stringify(data, null, 2));
@@ -31,7 +29,7 @@ async function uploadJSON(data) {
   }
 }
 
-// Загрузка JSON с FTP
+// загрузка JSON с FTP
 async function downloadJSON() {
   const client = new ftp.Client();
   try {
@@ -41,13 +39,9 @@ async function downloadJSON() {
 
     const parsed = JSON.parse(fs.readFileSync("events.json", "utf8"));
 
-    // нормализация: всегда массив
     let events = [];
-    if (Array.isArray(parsed.events)) {
-      events = parsed.events;
-    } else if (typeof parsed.events === "object") {
-      events = Object.values(parsed.events);
-    }
+    if (Array.isArray(parsed.events)) events = parsed.events;
+    else if (typeof parsed.events === "object") events = Object.values(parsed.events);
 
     console.log("Downloaded events:", events.length);
     return { events };
@@ -59,19 +53,19 @@ async function downloadJSON() {
   }
 }
 
-// Авторизация
+// авторизация
 app.post("/api/login", (req, res) => {
   const { password } = req.body;
   res.json({ status: password === SERVER_PASSWORD ? "ok" : "fail" });
 });
 
-// Получить события
+// получить события
 app.get("/api/events", async (req, res) => {
   const data = await downloadJSON();
   res.json(data.events || []);
 });
 
-// Добавить событие
+// добавить событие
 app.post("/api/events", async (req, res) => {
   try {
     const data = await downloadJSON();
@@ -84,9 +78,7 @@ app.post("/api/events", async (req, res) => {
 
     // добавление событий
     if (Array.isArray(incoming)) {
-      incoming.forEach(ev => {
-        data.events.push({ id: Date.now(), ...ev });
-      });
+      incoming.forEach(ev => data.events.push({ id: Date.now(), ...ev }));
     } else {
       data.events.push({ id: Date.now(), ...incoming });
     }
@@ -98,7 +90,7 @@ app.post("/api/events", async (req, res) => {
   }
 });
 
-// Обновить событие
+// обновить событие
 app.put("/api/events/:id", async (req, res) => {
   try {
     const data = await downloadJSON();
@@ -116,7 +108,7 @@ app.put("/api/events/:id", async (req, res) => {
   }
 });
 
-// Удалить событие
+// удалить событие
 app.delete("/api/events/:id", async (req, res) => {
   try {
     const data = await downloadJSON();
@@ -131,7 +123,7 @@ app.delete("/api/events/:id", async (req, res) => {
   }
 });
 
-// Очистить историю вручную
+// очистить историю вручную
 app.post("/api/events/clear", async (req, res) => {
   try {
     await uploadJSON({ events: [] });
@@ -141,23 +133,26 @@ app.post("/api/events/clear", async (req, res) => {
   }
 });
 
-// -------------------------
-// Автоматический сброс раз в сутки (node-schedule)
-// -------------------------
+// автоматический сброс в течение часа
+let lastReset = null;
 
-// Каждый день в 00:00
-schedule.scheduleJob("0 0 * * *", async () => {
-  console.log("Daily reset triggered");
-  await uploadJSON({ events: [] });
+const rule = new schedule.RecurrenceRule();
+rule.tz = "Europe/Minsk";                 // часовой пояс
+rule.hour = 0;                            // час: 00
+rule.minute = new schedule.Range(0, 59);  // каждая минута в течение часа
+
+schedule.scheduleJob(rule, async () => {
+  const today = new Date().toISOString().slice(0, 10);
+
+  if (lastReset !== today) {              // защита от повторного сброса
+    console.log("Daily reset:", today);
+    await uploadJSON({ events: [] });
+    lastReset = today;
+  }
 });
-
-// -------------------------
-// Старт сервера
-// -------------------------
 
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
-
